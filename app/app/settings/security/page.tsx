@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { changePasswordSchema, type ChangePasswordInput } from "@/lib/validation";
 import { changePassword } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -41,12 +41,12 @@ export default function SecurityPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="new_password">New Password</Label>
-            <Input id="new_password" type="password" autoComplete="new-password" {...register("new_password")} />
+            <PasswordInput id="new_password" autoComplete="new-password" {...register("new_password")} />
             {errors.new_password && <p className="text-sm text-destructive">{errors.new_password.message}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm_password">Confirm New Password</Label>
-            <Input id="confirm_password" type="password" autoComplete="new-password" {...register("confirm_password")} />
+            <PasswordInput id="confirm_password" autoComplete="new-password" {...register("confirm_password")} />
             {errors.confirm_password && <p className="text-sm text-destructive">{errors.confirm_password.message}</p>}
           </div>
           <Button type="submit" disabled={saving}>

@@ -36,7 +36,10 @@ export default function Home() {
       <footer className="border-t">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <p className="text-sm text-muted-foreground">Prop</p>
-          <p className="text-sm text-muted-foreground">Personal asset tracking</p>
+          <p className="text-sm text-muted-foreground">
+            made by a human called{" "}
+            <a href="https://sepr.dev" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">sepehr</a>.
+          </p>
         </div>
       </footer>
     </div>

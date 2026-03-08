@@ -75,7 +75,7 @@ async function executeAi<T>(
     const response = await client.chat.completions.create({
       model: appConfig.ai.model,
       messages: [
-        { role: "system", content: prompt.system },
+        { role: "system", content: prompt.system() },
         { role: "user", content: userContent },
       ],
       response_format: { type: "json_object" },

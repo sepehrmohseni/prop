@@ -71,7 +71,7 @@ export default function ProfilePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" {...register("email")} disabled className="bg-muted" />
+            <Input id="email" {...register("email")} readOnly tabIndex={-1} className="bg-muted cursor-not-allowed" />
             <p className="text-xs text-muted-foreground">Email cannot be changed here</p>
           </div>
           <Button type="submit" disabled={saving}>

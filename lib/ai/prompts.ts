@@ -18,9 +18,15 @@ function rules(...extra: string[]): string {
   return [...SHARED_RULES, ...extra].map((r, i) => `${i + 1}. ${r}`).join("\n");
 }
 
+function today(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 export const prompts = {
   improveDetails: {
-    system: `You extract structured asset data from freeform text for a personal asset tracker called "${appConfig.name}".
+    system: () => `You extract structured asset data from freeform text for a personal asset tracker called "${appConfig.name}".
+
+Today's date is ${today()}. Use this to interpret relative dates like "last week", "yesterday", "2 months ago".
 
 Return a JSON object with ONLY the fields you can confidently extract:
 - name (string)
@@ -31,19 +37,30 @@ Return a JSON object with ONLY the fields you can confidently extract:
 - acquisition_date (YYYY-MM-DD)
 - country (ISO 3166-1 alpha-2)
 - description (one sentence max)
-- metadata (object with category-specific fields like make, model, year for cars; address for property; ticker for stocks)
+- metadata (object with category-specific fields):
+  - For cars: make, model, year, mileage, plate, condition, vin
+  - For houses/land: property_type, address_line1, city, state_region, postal_code, size, size_unit
+  - For stocks: symbol, company_name, exchange, average_cost
+  - For cryptocurrency: symbol, asset_name, network, wallet_exchange
+  - For gold/silver/metals: metal_type, form, weight, weight_unit, purity, storage_location
+  - For business: business_name, business_type, industry
+  - For collectibles: item_type, artist_maker, era_year, condition
+  - For bonds: issuer, bond_type, coupon_rate, maturity_date, face_value
+  - For retirement: account_type, institution
+  - For receivables: debtor_name, due_date, terms
 
 Rules:
 ${rules(
   "Be conservative with numeric values — round to reasonable precision.",
   "For ambiguous currencies, prefer the user's likely local currency or USD.",
   "Only include metadata fields relevant to the detected category.",
+  "Always resolve relative dates against today's date.",
 )}`,
     maxTokens: appConfig.ai.maxTokens.improveDetails,
   },
 
   categorize: {
-    system: `You categorize assets for "${appConfig.name}", a personal asset tracker.
+    system: () => `You categorize assets for "${appConfig.name}", a personal asset tracker.
 
 Return JSON: { "category": string, "subtype": string | null, "suggestions": string[] }
 
@@ -62,7 +79,7 @@ ${rules(
   },
 
   portfolioInsights: {
-    system: `You provide informational portfolio observations for "${appConfig.name}", a personal asset tracker. You are NOT a financial advisor.
+    system: () => `You provide informational portfolio observations for "${appConfig.name}", a personal asset tracker. You are NOT a financial advisor.
 
 Input: JSON summary with totalValue, baseCurrency, categoryAllocation, currencyAllocation, totalAssets, staleCount.
 
@@ -86,7 +103,7 @@ ${rules(
   },
 
   dataQuality: {
-    system: `You analyze data completeness for "${appConfig.name}", a personal asset tracker.
+    system: () => `You analyze data completeness for "${appConfig.name}", a personal asset tracker.
 
 Input: JSON array of assets with fields: name, category, has_acquisition_date, has_cost_basis, has_country, has_notes, days_since_valuation.
 

@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -86,38 +87,34 @@ export default function PreferencesPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Base Currency</Label>
-            <Select value={watch("base_currency")} onValueChange={(v) => { if (v) setValue("base_currency", v); }}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.code} — {c.name} ({c.symbol})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={currencies.map((c) => ({
+                value: c.code,
+                label: `${c.code} — ${c.name} (${c.symbol})`,
+              }))}
+              value={watch("base_currency")}
+              onValueChange={(v) => { if (v) setValue("base_currency", v); }}
+              placeholder="Select currency"
+              searchPlaceholder="Search currencies..."
+            />
             <p className="text-xs text-muted-foreground">
               All portfolio values will be displayed in this currency
             </p>
           </div>
           <div className="space-y-2">
             <Label>Default Country</Label>
-            <Select
-              value={watch("default_country") ?? "none"}
-              onValueChange={(v) => setValue("default_country", v === "none" ? null : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No default</SelectItem>
-                {countries.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={countries.map((c) => ({
+                value: c.code,
+                label: c.name,
+              }))}
+              value={watch("default_country") ?? null}
+              onValueChange={(v) => setValue("default_country", v)}
+              placeholder="Select country"
+              searchPlaceholder="Search countries..."
+              allowClear
+              clearLabel="No default"
+            />
           </div>
           <div className="space-y-2">
             <Label>Theme</Label>

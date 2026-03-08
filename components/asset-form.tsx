@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import type { Asset, AssetCategory } from "@/types";
@@ -105,7 +106,7 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
 
     if (result.success) {
       toast.success(isEditing ? "Asset updated" : "Asset created");
-      router.push(result.data ? `/app/assets/${result.data.id}` : "/app/assets");
+      router.push(isEditing && result.data ? `/app/assets/${result.data.id}` : "/app/assets");
       router.refresh();
     } else {
       setError(result.error ?? "Something went wrong");
@@ -252,21 +253,16 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="currency">Currency *</Label>
-              <Select
+              <Combobox
+                options={currencies.map((c) => ({
+                  value: c.code,
+                  label: `${c.code} — ${c.name}`,
+                }))}
                 value={currency}
                 onValueChange={(v) => { if (v) setValue("currency", v); }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {currencies.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.code} — {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select currency"
+                searchPlaceholder="Search currencies..."
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="current_value">Current Value *</Label>
@@ -342,20 +338,18 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="country">Country</Label>
-              <Select
-                value={watch("country") ?? "none"}
-                onValueChange={(v) => setValue("country", !v || v === "none" ? null : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No country</SelectItem>
-                  {countries.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={countries.map((c) => ({
+                  value: c.code,
+                  label: c.name,
+                }))}
+                value={watch("country") ?? null}
+                onValueChange={(v) => setValue("country", v)}
+                placeholder="Select country"
+                searchPlaceholder="Search countries..."
+                allowClear
+                clearLabel="No country"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="region">Region / State</Label>

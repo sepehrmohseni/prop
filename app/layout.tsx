@@ -5,6 +5,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 
+import { NavigationProgress } from "@/components/navigation-progress";
+
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
@@ -49,6 +51,7 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <TooltipProvider>
+            <NavigationProgress />
             {children}
             <Toaster position="bottom-right" richColors />
           </TooltipProvider>
