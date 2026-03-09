@@ -76,7 +76,7 @@ export async function getAsset(id: string): Promise<Asset | null> {
 }
 
 export async function createAsset(
-  input: Omit<Asset, "id" | "user_id" | "is_deleted" | "created_at" | "updated_at">
+  input: Omit<Asset, "id" | "user_id" | "is_deleted" | "created_at" | "updated_at" | "last_valuation_date">
 ): Promise<ActionResult<Asset>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -115,20 +115,25 @@ export async function createAsset(
 
 export async function updateAsset(
   id: string,
-  input: Partial<Omit<Asset, "id" | "user_id" | "is_deleted" | "created_at">>
+  input: Partial<Omit<Asset, "id" | "user_id" | "is_deleted" | "created_at">>,
+  options?: { updateValuation?: boolean }
 ): Promise<ActionResult<Asset>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Not authenticated" };
 
   const now = new Date().toISOString();
+  const shouldUpdateValuation = options?.updateValuation === true;
+
+  const updatePayload = {
+    ...input,
+    updated_at: now,
+    ...(shouldUpdateValuation ? { last_valuation_date: now } : {}),
+  };
+
   const { data, error } = await supabase
     .from("assets")
-    .update({
-      ...input,
-      updated_at: now,
-      last_valuation_date: input.current_value !== undefined ? now : undefined,
-    })
+    .update(updatePayload)
     .eq("id", id)
     .eq("user_id", user.id)
     .select()
@@ -136,7 +141,7 @@ export async function updateAsset(
 
   if (error) return { success: false, error: error.message };
 
-  if (input.current_value !== undefined) {
+  if (shouldUpdateValuation && input.current_value !== undefined) {
     await supabase.from("asset_valuations").insert({
       asset_id: id,
       user_id: user.id,

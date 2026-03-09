@@ -88,7 +88,7 @@ export default function ResetPasswordPage() {
             )}
           </div>
         </CardContent>
-        <CardFooter className="pt-2">
+        <CardFooter className="pt-8">
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Update Password

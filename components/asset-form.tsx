@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -24,10 +24,63 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import type { Asset, AssetCategory } from "@/types";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { improveAssetDetails } from "@/lib/ai/actions";
+import { formatNumber } from "@/lib/formatting";
+
+// ── Number Input with comma formatting ───────────────────────────────
+
+function MoneyInput({
+  value,
+  onChange,
+  id,
+  placeholder,
+}: {
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+  id?: string;
+  placeholder?: string;
+}) {
+  const [display, setDisplay] = useState(() =>
+    value != null && value !== 0 ? formatNumber(value, 10) : ""
+  );
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const cleaned = raw.replace(/[^0-9.,-]/g, "");
+    setDisplay(cleaned);
+    const parsed = parseFloat(cleaned.replace(/,/g, ""));
+    onChange(isNaN(parsed) ? null : parsed);
+  };
+
+  const handleBlur = () => {
+    const parsed = parseFloat(display.replace(/,/g, ""));
+    if (!isNaN(parsed)) {
+      setDisplay(formatNumber(parsed, 10));
+    }
+  };
+
+  const handleFocus = () => {
+    if (value != null && value !== 0) {
+      setDisplay(String(value));
+    }
+  };
+
+  return (
+    <Input
+      id={id}
+      value={display}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
+      placeholder={placeholder ?? "0"}
+      inputMode="decimal"
+    />
+  );
+}
 
 interface AssetFormProps {
   asset?: Asset;
@@ -40,6 +93,7 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiText, setAiText] = useState("");
+  const [updateValuation, setUpdateValuation] = useState(false);
 
   const isEditing = !!asset;
 
@@ -75,9 +129,19 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
 
   const category = watch("category") as AssetCategory;
   const currency = watch("currency");
+  const currentValue = watch("current_value");
+  const costBasis = watch("cost_basis");
+  const quantity = watch("quantity");
   const needsConversion = currency !== baseCurrency;
 
+  // Derived computed values
+  const unitCost = costBasis && quantity && quantity > 0 ? costBasis / quantity : null;
+  const currentUnitPrice = currentValue && quantity && quantity > 0 ? currentValue / quantity : null;
+  const gainLoss = costBasis != null && costBasis > 0 ? currentValue - costBasis : null;
+  const gainLossPct = costBasis != null && costBasis > 0 ? ((currentValue - costBasis) / costBasis) * 100 : null;
+
   async function onSubmit(data: AssetFormInput) {
+    if (loading) return;
     setLoading(true);
     setError(null);
 
@@ -96,22 +160,30 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
       region: data.region ?? null,
       notes: data.notes ?? null,
       metadata: parsedMetadata.success ? (parsedMetadata as { data: Record<string, unknown> }).data ?? {} : data.metadata,
-      last_valuation_date: new Date().toISOString(),
       valuation_source: "manual" as const,
     };
 
     const result = isEditing
-      ? await updateAsset(asset.id, payload)
+      ? await updateAsset(asset.id, payload, { updateValuation })
       : await createAsset(payload);
 
-    if (result.success) {
+    if (result.success && result.data) {
       toast.success(isEditing ? "Asset updated" : "Asset created");
-      router.push(isEditing && result.data ? `/app/assets/${result.data.id}` : "/app/assets");
-      router.refresh();
+      const targetUrl = `/app/assets/${result.data.id}`;
+      setTimeout(() => {
+        router.push(targetUrl);
+        router.refresh();
+      }, 1000);
+    } else if (result.success) {
+      toast.success(isEditing ? "Asset updated" : "Asset created");
+      setTimeout(() => {
+        router.push("/app/assets");
+        router.refresh();
+      }, 1000);
     } else {
       setError(result.error ?? "Something went wrong");
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function handleAiSuggestion() {
@@ -248,6 +320,19 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Valuation</CardTitle>
+          {isEditing && (
+            <CardDescription className="flex items-center gap-3 pt-2">
+              <Switch
+                checked={updateValuation}
+                onCheckedChange={setUpdateValuation}
+              />
+              <span className="text-sm">
+                {updateValuation
+                  ? "Valuation will be recorded when you save"
+                  : "Only asset info will be updated (valuation stays unchanged)"}
+              </span>
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -265,62 +350,132 @@ export function AssetForm({ asset, baseCurrency }: AssetFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="current_value">Current Value *</Label>
-              <Input
+              <Label htmlFor="current_value">Current Total Value *</Label>
+              <MoneyInput
                 id="current_value"
-                type="number"
-                step="0.01"
-                min={0}
-                {...register("current_value")}
+                value={currentValue}
+                onChange={(v) => setValue("current_value", v ?? 0)}
+                placeholder="0"
               />
+              <p className="text-xs text-muted-foreground">
+                Total value of your holdings in {currency}
+              </p>
               {errors.current_value && (
                 <p className="text-sm text-destructive">{errors.current_value.message}</p>
               )}
             </div>
           </div>
+
+          <Separator />
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="cost_basis">Cost Basis / Purchase Price</Label>
-              <Input id="cost_basis" type="number" step="0.01" min={0} {...register("cost_basis")} />
+              <Label htmlFor="cost_basis">Total Cost (what you paid)</Label>
+              <MoneyInput
+                id="cost_basis"
+                value={costBasis}
+                onChange={(v) => setValue("cost_basis", v)}
+                placeholder="0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Total amount paid in {currency}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="quantity">Quantity</Label>
-              <Input id="quantity" type="number" step="any" min={0} {...register("quantity")} />
+              <MoneyInput
+                id="quantity"
+                value={quantity}
+                onChange={(v) => setValue("quantity", v)}
+                placeholder="e.g. 0.0145"
+              />
+              <p className="text-xs text-muted-foreground">
+                Units / shares / coins you own
+              </p>
             </div>
           </div>
+
+          {/* Derived values summary */}
+          {(unitCost != null || gainLoss !== null) && (
+            <div className="rounded-lg bg-muted/50 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Calculator className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium">Calculated</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                {unitCost != null && (
+                  <div>
+                    <p className="text-muted-foreground">Cost per unit</p>
+                    <p className="font-medium tabular-nums">
+                      {formatNumber(unitCost, 4)} {currency}
+                    </p>
+                  </div>
+                )}
+                {currentUnitPrice != null && (
+                  <div>
+                    <p className="text-muted-foreground">Current unit price</p>
+                    <p className="font-medium tabular-nums">
+                      {formatNumber(currentUnitPrice, 4)} {currency}
+                    </p>
+                  </div>
+                )}
+                {gainLoss !== null && (
+                  <div>
+                    <p className="text-muted-foreground">Gain / Loss</p>
+                    <p className={`font-medium tabular-nums ${gainLoss >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {gainLoss >= 0 ? "+" : ""}{formatNumber(gainLoss, 2)} {currency}
+                      {gainLossPct !== null && (
+                        <span className="text-xs ml-1">({gainLossPct >= 0 ? "+" : ""}{gainLossPct.toFixed(1)}%)</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {needsConversion && (
             <>
               <Separator />
-              <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+              <div className="rounded-lg border border-dashed p-4 space-y-3">
                 <p className="text-sm font-medium">
                   Currency Conversion — {currency} → {baseCurrency}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Since this asset is in {currency} and your base currency is {baseCurrency},
-                  please provide a conversion rate or the equivalent base value.
+                  Your base currency is {baseCurrency}. Provide a rate or the equivalent value so
+                  your portfolio total is accurate.
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="conversion_rate">
-                      Conversion Rate (1 {currency} = ? {baseCurrency})
+                      Exchange Rate (1 {currency} = ? {baseCurrency})
                     </Label>
-                    <Input
+                    <MoneyInput
                       id="conversion_rate"
-                      type="number"
-                      step="any"
-                      {...register("conversion_rate")}
+                      value={watch("conversion_rate")}
+                      onChange={(v) => {
+                        setValue("conversion_rate", v);
+                        if (v && v > 0 && currentValue) {
+                          setValue("base_currency_value", Math.round(currentValue * v * 100) / 100);
+                        }
+                      }}
+                      placeholder="e.g. 0.000665"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="base_currency_value">
                       Value in {baseCurrency}
                     </Label>
-                    <Input
+                    <MoneyInput
                       id="base_currency_value"
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      {...register("base_currency_value")}
+                      value={watch("base_currency_value")}
+                      onChange={(v) => {
+                        setValue("base_currency_value", v);
+                        if (v && v > 0 && currentValue && currentValue > 0) {
+                          setValue("conversion_rate", Math.round((v / currentValue) * 1e8) / 1e8);
+                        }
+                      }}
+                      placeholder="0"
                     />
                   </div>
                 </div>

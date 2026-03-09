@@ -23,11 +23,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatCurrency, formatDate, isStaleValuation } from "@/lib/formatting";
 import { getCategoryConfig, categoryList } from "@/lib/categories";
+import { deleteAsset } from "@/lib/db/assets";
 import type { Asset, AssetCategory, AssetFilters } from "@/types";
-import { Plus, Search, AlertTriangle, Wallet, X } from "lucide-react";
+import { Plus, Search, AlertTriangle, Wallet, X, MoreHorizontal, Eye, Pencil, Trash2, Loader2 } from "lucide-react";
 import { PageTransition, AnimatedCard } from "@/components/motion";
+import { toast } from "sonner";
 
 interface Props {
   assets: Asset[];
@@ -49,6 +68,8 @@ export function AssetsListContent({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(filters.search ?? "");
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const updateFilter = useCallback(
     (key: string, value: string | null | undefined) => {
@@ -75,6 +96,20 @@ export function AssetsListContent({
   };
 
   const hasFilters = filters.search || filters.category || filters.status || filters.currency;
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const result = await deleteAsset(deleteTarget.id);
+    if (result.success) {
+      toast.success("Asset deleted");
+      setDeleteTarget(null);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to delete");
+    }
+    setDeleting(false);
+  }
 
   const totalValue = assets.reduce(
     (sum, a) => sum + (a.base_currency_value ?? a.current_value) * (a.ownership_percentage / 100),
@@ -224,8 +259,9 @@ export function AssetsListContent({
                 <TableHead>Category</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Value</TableHead>
-                <TableHead className="text-right">Base Value</TableHead>
+                <TableHead className="text-right">Gain / Loss</TableHead>
                 <TableHead>Last Updated</TableHead>
+                <TableHead className="w-[50px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -233,6 +269,12 @@ export function AssetsListContent({
                 const config = getCategoryConfig(asset.category as AssetCategory);
                 const Icon = config.icon;
                 const stale = isStaleValuation(asset.last_valuation_date);
+                const gain = asset.cost_basis != null && asset.cost_basis > 0
+                  ? asset.current_value - asset.cost_basis
+                  : null;
+                const gainPct = asset.cost_basis != null && asset.cost_basis > 0
+                  ? ((asset.current_value - asset.cost_basis) / asset.cost_basis) * 100
+                  : null;
                 return (
                   <TableRow key={asset.id} className="cursor-pointer" onClick={() => router.push(`/app/assets/${asset.id}`)}>
                     <TableCell>
@@ -240,7 +282,12 @@ export function AssetsListContent({
                         <div className={`rounded-lg p-1.5 ${config.color} text-white`}>
                           <Icon className="h-3.5 w-3.5" />
                         </div>
-                        <span className="font-medium">{asset.name}</span>
+                        <div>
+                          <span className="font-medium">{asset.name}</span>
+                          {asset.quantity != null && (
+                            <p className="text-xs text-muted-foreground">{asset.quantity} units</p>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -254,13 +301,20 @@ export function AssetsListContent({
                         {asset.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(asset.current_value, asset.currency)}
+                    <TableCell className="text-right">
+                      <p className="font-medium">
+                        {formatCurrency(asset.base_currency_value ?? asset.current_value, baseCurrency)}
+                      </p>
+                      {asset.currency !== baseCurrency && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(asset.current_value, asset.currency)}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {asset.base_currency_value != null && asset.currency !== baseCurrency ? (
-                        <span className="font-medium">
-                          {formatCurrency(asset.base_currency_value, baseCurrency)}
+                      {gain !== null ? (
+                        <span className={`text-sm font-medium ${gain >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                          {gain >= 0 ? "+" : ""}{gainPct?.toFixed(1)}%
                         </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -273,6 +327,33 @@ export function AssetsListContent({
                           {formatDate(asset.last_valuation_date)}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/app/assets/${asset.id}`); }}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/app/assets/${asset.id}/edit`); }}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget(asset); }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
@@ -288,6 +369,12 @@ export function AssetsListContent({
           const config = getCategoryConfig(asset.category as AssetCategory);
           const Icon = config.icon;
           const stale = isStaleValuation(asset.last_valuation_date);
+          const gain = asset.cost_basis != null && asset.cost_basis > 0
+            ? asset.current_value - asset.cost_basis
+            : null;
+          const gainPct = asset.cost_basis != null && asset.cost_basis > 0
+            ? ((asset.current_value - asset.cost_basis) / asset.cost_basis) * 100
+            : null;
           return (
             <motion.div
               key={asset.id}
@@ -295,34 +382,69 @@ export function AssetsListContent({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Link href={`/app/assets/${asset.id}`}>
-                <Card className="hover:bg-accent/50 hover:shadow-sm transition-all active:scale-[0.99]">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`rounded-lg p-2 ${config.color} text-white`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">{asset.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant="secondary" className="text-xs">{config.name}</Badge>
-                        {stale && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+              <Card className="hover:bg-accent/50 hover:shadow-sm transition-all active:scale-[0.99]">
+                <CardContent className="p-4">
+                  <Link href={`/app/assets/${asset.id}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`rounded-lg p-2 ${config.color} text-white`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{asset.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="secondary" className="text-xs">{config.name}</Badge>
+                            {stale && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-sm">
+                          {formatCurrency(asset.base_currency_value ?? asset.current_value, baseCurrency)}
+                        </p>
+                        {gain !== null && (
+                          <p className={`text-xs ${gain >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {gain >= 0 ? "+" : ""}{gainPct?.toFixed(1)}%
+                          </p>
+                        )}
+                        {asset.currency !== baseCurrency && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatCurrency(asset.current_value, asset.currency)}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-sm">
-                      {formatCurrency(asset.base_currency_value ?? asset.current_value, baseCurrency)}
-                    </p>
-                    {asset.currency !== baseCurrency && (
-                      <p className="text-xs text-muted-foreground">
-                        {formatCurrency(asset.current_value, asset.currency)}
-                      </p>
-                    )}
+                  </Link>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">{formatDate(asset.last_valuation_date)}</p>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/app/assets/${asset.id}`)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/app/assets/${asset.id}/edit`)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteTarget(asset)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardContent>
               </Card>
-              </Link>
             </motion.div>
           );
         })}
@@ -351,6 +473,24 @@ export function AssetsListContent({
           </Button>
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Asset</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will archive &quot;{deleteTarget?.name}&quot;. You can recover it later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageTransition>
   );
 }

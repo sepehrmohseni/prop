@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { profileSchema, type ProfileInput } from "@/lib/validation";
 import { getProfile, updateProfile } from "@/lib/db/profile";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,15 +20,40 @@ export default function ProfilePage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileInput>({
     resolver: zodResolver(profileSchema),
+    defaultValues: {
+      full_name: "",
+      email: "",
+    },
   });
 
   useEffect(() => {
-    getProfile().then((profile) => {
-      if (profile) {
-        reset({ full_name: profile.full_name, email: profile.email });
+    async function loadProfile() {
+      try {
+        // Try DB profile first
+        const profile = await getProfile();
+        if (profile && (profile.full_name || profile.email)) {
+          reset({
+            full_name: profile.full_name ?? "",
+            email: profile.email ?? "",
+          });
+          setLoading(false);
+          return;
+        }
+        // Fallback: read from auth user directly
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          reset({
+            full_name: (user.user_metadata?.full_name as string) ?? profile?.full_name ?? "",
+            email: user.email ?? profile?.email ?? "",
+          });
+        }
+      } catch {
+        // Silently fail — form stays with defaults
       }
       setLoading(false);
-    });
+    }
+    loadProfile();
   }, [reset]);
 
   async function onSubmit(data: ProfileInput) {

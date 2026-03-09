@@ -32,7 +32,7 @@ import { getCategoryConfig } from "@/lib/categories";
 import { getCountryName } from "@/lib/countries";
 import { deleteAsset, deleteAssetPurchase } from "@/lib/db/assets";
 import type { Asset, AssetCategory, AssetValuation, AssetPurchase } from "@/types";
-import { Pencil, Trash2, AlertTriangle, Clock, ArrowLeft, ShoppingBag, Store } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle, Clock, ArrowLeft, ShoppingBag, Store, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageTransition, AnimatedCard } from "@/components/motion";
 
@@ -46,6 +46,7 @@ interface Props {
 export function AssetDetailContent({ asset, baseCurrency, valuations, purchases }: Props) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const config = getCategoryConfig(asset.category as AssetCategory);
   const Icon = config.icon;
   const stale = isStaleValuation(asset.last_valuation_date);
@@ -54,9 +55,12 @@ export function AssetDetailContent({ asset, baseCurrency, valuations, purchases 
     setDeleting(true);
     const result = await deleteAsset(asset.id);
     if (result.success) {
+      setDeleteOpen(false);
       toast.success("Asset deleted");
-      router.push("/app/assets");
-      router.refresh();
+      setTimeout(() => {
+        router.push("/app/assets");
+        router.refresh();
+      }, 500);
     } else {
       toast.error(result.error ?? "Failed to delete");
       setDeleting(false);
@@ -118,7 +122,7 @@ export function AssetDetailContent({ asset, baseCurrency, valuations, purchases 
               <span className="hidden sm:inline">Edit</span>
             </Button>
           </Link>
-          <AlertDialog>
+          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <AlertDialogTrigger>
               <Button variant="outline" size="sm" className="gap-2 text-destructive">
                 <Trash2 className="h-4 w-4" />
@@ -133,8 +137,9 @@ export function AssetDetailContent({ asset, baseCurrency, valuations, purchases 
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+                  {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Delete
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -288,7 +293,7 @@ export function AssetDetailContent({ asset, baseCurrency, valuations, purchases 
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ShoppingBag className="h-4 w-4 text-primary" />
-                  Purchase Sources
+                  Purchase History
                 </CardTitle>
                 <Badge variant="secondary" className="text-xs">
                   {purchases.length} {purchases.length === 1 ? "lot" : "lots"}
@@ -366,9 +371,9 @@ export function AssetDetailContent({ asset, baseCurrency, valuations, purchases 
                 ) : (
                   <div className="text-center py-6">
                     <Store className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No purchase records yet</p>
+                    <p className="text-sm text-muted-foreground">No purchase history yet</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Track where and how you acquired this asset
+                      Track where and when you acquired this asset
                     </p>
                   </div>
                 )}

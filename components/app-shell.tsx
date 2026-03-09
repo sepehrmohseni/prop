@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -8,8 +8,6 @@ import { signOut } from "@/lib/auth/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +21,6 @@ import {
   Lightbulb,
   Settings,
   LogOut,
-  Menu,
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,42 +57,37 @@ function getInitials(name: string): string {
 
 export function AppShell({ children, user }: AppShellProps) {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const navContent = (
-    <nav className="flex flex-col gap-1 px-3 py-2">
-      {navItems.map((item) => {
-        const isActive =
-          pathname === item.href || pathname.startsWith(item.href + "/");
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setMobileOpen(false)}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            )}
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col border-r bg-card">
         <div className="flex h-14 items-center gap-2 px-6 border-b">
           <Image src="/logo.png" alt="Prop" width={28} height={28} className="rounded" />
           <span className="text-lg font-bold tracking-tight">Prop</span>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
-          {navContent}
+          <nav className="flex flex-col gap-1 px-3 py-2">
+            {navItems.map((item) => {
+              const isActive =
+                pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
         <div className="border-t p-4">
           <Link href="/app/assets/new">
@@ -108,36 +100,13 @@ export function AppShell({ children, user }: AppShellProps) {
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header */}
         <header className="flex h-14 items-center justify-between border-b bg-card px-4 lg:px-6">
           <div className="flex items-center gap-3">
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger>
-                <Button variant="ghost" size="icon" className="lg:hidden">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-64 p-0">
-                <SheetTitle className="sr-only">Navigation</SheetTitle>
-                <div className="flex h-14 items-center gap-2 px-6 border-b">
-                  <Image src="/logo.png" alt="Prop" width={28} height={28} className="rounded" />
-                  <span className="text-lg font-bold">Prop</span>
-                </div>
-                <div className="py-2">
-                  {navContent}
-                </div>
-                <Separator />
-                <div className="p-4">
-                  <Link href="/app/assets/new" onClick={() => setMobileOpen(false)}>
-                    <Button className="w-full gap-2" size="sm">
-                      <Plus className="h-4 w-4" />
-                      Add Asset
-                    </Button>
-                  </Link>
-                </div>
-              </SheetContent>
-            </Sheet>
-            <span className="text-sm font-medium text-muted-foreground lg:hidden">Prop</span>
+            <div className="flex items-center gap-2 lg:hidden">
+              <Image src="/logo.png" alt="Prop" width={24} height={24} className="rounded" />
+              <span className="text-sm font-bold tracking-tight">Prop</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -180,12 +149,59 @@ export function AppShell({ children, user }: AppShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           <div className="mx-auto max-w-7xl p-4 lg:p-6">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex lg:hidden items-center justify-around border-t bg-card/95 backdrop-blur-sm px-2 pb-[env(safe-area-inset-bottom)]">
+        {navItems.slice(0, 2).map((item) => {
+          const isActive =
+            pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center gap-0.5 py-2 px-3 text-xs transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+
+        {/* Center FAB — Add Asset */}
+        <Link href="/app/assets/new" className="relative -top-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 transition-transform">
+            <Plus className="h-6 w-6" />
+          </div>
+        </Link>
+
+        {navItems.slice(2).map((item) => {
+          const isActive =
+            pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center gap-0.5 py-2 px-3 text-xs transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
